@@ -6,3 +6,4 @@
 
 翻译进度汇总：
 1.ConcurrentHashMap翻译初版。
+2.Striped64翻译初版。该类对于并发计数提出了新的解决思路,ConcurrentHashMap元素个数的统计都是基于该思想做的。
