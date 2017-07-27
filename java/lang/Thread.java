@@ -1739,6 +1739,10 @@ class Thread implements Runnable {
     public enum State {
         /**
          * Thread state for a thread which has not yet started.
+         *
+         * 创建线程对象,但还没有调用start()方法时对应的状态
+         * Thead t = new Tread();
+         *
          */
         NEW,
 
@@ -1747,6 +1751,18 @@ class Thread implements Runnable {
          * state is executing in the Java virtual machine but it may
          * be waiting for other resources from the operating system
          * such as processor.
+         *
+         * 运行中的线程对应的状态。这里仅仅代表线程在JVM中的状态,也就是说
+         * 如果该线程在等待操作系统的资源,比如说CPU,此时线程对应的状态仍然
+         * 是RUNNABLE。
+         *
+         * 这段注释写的很有意思,线程在等待操作系统的资源比如说CPU,那么如果是IO呢?
+         * 示例代码:
+         * ServerSocket ss = new ServerSocket(8888);
+         * ss.accept();
+         * ss会在这里阻塞,等待IO事件,这也算是在等待操作系统资源,当我们用jstack
+         * 导出线程查看对应状态是,确实是RUNNABLE,这里是重点。
+         *
          */
         RUNNABLE,
 
@@ -1756,6 +1772,14 @@ class Thread implements Runnable {
          * to enter a synchronized block/method or
          * reenter a synchronized block/method after calling
          * {@link Object#wait() Object.wait}.
+         *
+         * 该状态表示线程在阻塞等待monitor lock(监视器锁)。
+         * 一个线程在进入synchronized块跟方法的时候,或者在synchronized块跟方法中
+         * 调用Object.wait然后被唤醒重新进入synchronized块跟方法都对应该状态。
+         *
+         * 结合上面RUNNABLE的分析,也就是IO阻塞不会进入BLOCKED状态,只有synchronized
+         * 会导致线程进入该状态。
+         *
          */
         BLOCKED,
 
@@ -1777,6 +1801,17 @@ class Thread implements Runnable {
          * <tt>Object.notify()</tt> or <tt>Object.notifyAll()</tt> on
          * that object. A thread that has called <tt>Thread.join()</tt>
          * is waiting for a specified thread to terminate.
+         *
+         * 代表线程进入等待状态。
+         * 当一个线程调用如下方法时会进入该状态:
+         * 1.Object.wait;
+         * 2.Thread.join;
+         * 3.LockSupport.park
+         *
+         * 处在这个状态的线程是在等另一个线程做一些特殊的操作。
+         * 比如Object.wait()方法在等另一个线程调用Object.notify()或者Object.notifyAll()
+         * Thread.join()方法在等一个指定线程完成,即变为terminate状态。
+         *
          */
         WAITING,
 
@@ -1791,12 +1826,24 @@ class Thread implements Runnable {
          *   <li>{@link LockSupport#parkNanos LockSupport.parkNanos}</li>
          *   <li>{@link LockSupport#parkUntil LockSupport.parkUntil}</li>
          * </ul>
+         *
+         * 代表一个线程在等一个指定时间,然后自动醒来。
+         * 调用以下方法时,线程会进入该状态:
+         * 1.Thread.sleep
+         * 2.Object.wait(long)
+         * 3.Thread.join(long)
+         * 4.LockSupport.parkNanos
+         * 5.LockSupport.parkUntil
+         *
          */
         TIMED_WAITING,
 
         /**
          * Thread state for a terminated thread.
          * The thread has completed execution.
+         *
+         * 当线程执行完成时会进入该状态。
+         *
          */
         TERMINATED;
     }
