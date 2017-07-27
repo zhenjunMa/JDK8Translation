@@ -325,7 +325,7 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * 延迟初始化策略减少了使用空间,同时如果第一个操作是putAll(),传参的构造方法以及反序列化时
      * 也避免了resizing,这些操作都是会修改初始大小的设置。
      *
-     * 哈希表中元素的数量使用LongAdder类(1.8新增)实现。CounterCell(待补充)
+     * 哈希表中元素的数量使用LongAdder类(1.8新增)实现。参考我翻译的另一个类Striped64。
      *
      * TreeBin对于查找等操作使用了特殊的比较方式(这是不适用treeMap的最大原因),TreeBin包含了
      * 实现Comparable接口的节点,但也包含了一些没有实现该接口的节点,因此不能直接使用compareTo
