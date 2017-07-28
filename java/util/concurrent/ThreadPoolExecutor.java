@@ -613,6 +613,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         }
 
         /** Delegates main run loop to outer runWorker  */
+        //Woker类实现了Runnable接口
         public void run() {
             runWorker(this);
         }
@@ -892,6 +893,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @return true if successful
      */
     private boolean addWorker(Runnable firstTask, boolean core) {
+        //这里有一段基于CAS+死循环实现的关于线程池状态，线程数量的校验与更新逻辑就先忽略了，重点看主流程。
         retry:
         for (;;) {
             int c = ctl.get();
@@ -922,7 +924,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         boolean workerAdded = false;
         Worker w = null;
         try {
+            //把指定任务作为参数新建一个worker线程
             w = new Worker(firstTask);
+            //这里是重点，咋一看，一定以为w.thread就是我们传入的firstTask
+            //其实是通过线程池构造函数参数threadFactory生成的woker对象
+            //也就是说这个变量t就是代表woker线程。绝对不是用户提交的线程任务firstTask！！！
             final Thread t = w.thread;
             if (t != null) {
                 final ReentrantLock mainLock = this.mainLock;
@@ -931,12 +937,14 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                     // Recheck while holding lock.
                     // Back out on ThreadFactory failure or if
                     // shut down before lock acquired.
+                    //加锁之后仍旧是判断线程池状态等一些校验逻辑。
                     int rs = runStateOf(ctl.get());
 
                     if (rs < SHUTDOWN ||
                         (rs == SHUTDOWN && firstTask == null)) {
                         if (t.isAlive()) // precheck that t is startable
                             throw new IllegalThreadStateException();
+                        //把新建的woker线程放入集合保存，这里使用的是HashSet
                         workers.add(w);
                         int s = workers.size();
                         if (s > largestPoolSize)
@@ -947,12 +955,15 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                     mainLock.unlock();
                 }
                 if (workerAdded) {
+                    //然后启动woker线程
+                    //这里再强调一遍上面说的逻辑，该变量t代表woker线程，也就是会调用woker的run方法
                     t.start();
                     workerStarted = true;
                 }
             }
         } finally {
             if (! workerStarted)
+                //如果woker启动失败，则进行一些善后工作，比如说修改当前woker数量等等
                 addWorkerFailed(w);
         }
         return workerStarted;
@@ -1117,13 +1128,21 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *
      * @param w the worker
      */
+    //最终woker执行逻辑走到了这里
     final void runWorker(Worker w) {
         Thread wt = Thread.currentThread();
+        //task就是Woker构造函数入参指定的任务，即用户提交的任务
         Runnable task = w.firstTask;
         w.firstTask = null;
         w.unlock(); // allow interrupts
         boolean completedAbruptly = true;
         try {
+            //一般情况下，task都不会为空（特殊情况上面注释中也说明了），因此会直接进入循环体中
+            //这里getTask方法是要重点说明的，它的实现跟我们构造参数设置存活时间有关
+            //我们都知道构造参数设置的时间代表了线程池中的线程，即woker线程的存活时间，如果到期则回收woker线程，这个逻辑的实现就在getTask中。
+            //来不及执行的任务，线程池会放入一个阻塞队列，getTask方法就是去阻塞队列中取任务，用户设置的存活时间，就是
+            //从这个阻塞队列中取任务等待的最大时间，如果getTask返回null，意思就是woker等待了指定时间仍然没有
+            //取到任务，此时就会跳过循环体，进入woker线程的销毁逻辑。
             while (task != null || (task = getTask()) != null) {
                 w.lock();
                 // If pool is stopping, ensure thread is interrupted;
@@ -1136,9 +1155,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                     !wt.isInterrupted())
                     wt.interrupt();
                 try {
+                    //该方法是个空的实现，如果有需要用户可以自己继承该类进行实现
                     beforeExecute(wt, task);
                     Throwable thrown = null;
                     try {
+                        //真正的任务执行逻辑
                         task.run();
                     } catch (RuntimeException x) {
                         thrown = x; throw x;
@@ -1147,9 +1168,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                     } catch (Throwable x) {
                         thrown = x; throw new Error(x);
                     } finally {
+                        //该方法是个空的实现，如果有需要用户可以自己继承该类进行实现
                         afterExecute(task, thrown);
                     }
                 } finally {
+                    //这里设为null，也就是循环体再执行的时候会调用getTask方法
                     task = null;
                     w.completedTasks++;
                     w.unlock();
@@ -1157,6 +1180,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             }
             completedAbruptly = false;
         } finally {
+            //当指定任务执行完成，阻塞队列中也取不到可执行任务时，会进入这里，做一些善后工作，比如在corePoolSize跟maximumPoolSize之间的woker会进行回收
             processWorkerExit(w, completedAbruptly);
         }
     }

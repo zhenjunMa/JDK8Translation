@@ -86,6 +86,8 @@ public class Executors {
      * @throws IllegalArgumentException if {@code nThreads <= 0}
      */
     public static ExecutorService newFixedThreadPool(int nThreads) {
+        //corePoolSize跟maximumPoolSize值一样，同时传入一个无界阻塞队列
+        //根据上面分析的woker回收逻辑，该线程池的线程会维持在指定线程数，不会进行回收
         return new ThreadPoolExecutor(nThreads, nThreads,
                                       0L, TimeUnit.MILLISECONDS,
                                       new LinkedBlockingQueue<Runnable>());
@@ -168,6 +170,8 @@ public class Executors {
      * @return the newly created single-threaded Executor
      */
     public static ExecutorService newSingleThreadExecutor() {
+        //线程池中只有一个线程进行任务执行，其他的都放入阻塞队列
+        //外面包装的FinalizableDelegatedExecutorService类实现了finalize方法，在JVM垃圾回收的时候会关闭线程池
         return new FinalizableDelegatedExecutorService
             (new ThreadPoolExecutor(1, 1,
                                     0L, TimeUnit.MILLISECONDS,
@@ -213,6 +217,7 @@ public class Executors {
      * @return the newly created thread pool
      */
     public static ExecutorService newCachedThreadPool() {
+        //这个线程池corePoolSize为0，maximumPoolSize为Integer.MAX_VALUE，意思也就是说来一个任务就创建一个woker，回收时间是60s
         return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
                                       60L, TimeUnit.SECONDS,
                                       new SynchronousQueue<Runnable>());
