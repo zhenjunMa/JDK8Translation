@@ -61,6 +61,74 @@ import sun.reflect.misc.ReflectUtil;
 import sun.security.util.SecurityConstants;
 
 /**
+ * 类加载器(classloader)是负责读取class的。ClassLoader是一个抽象类。通过把class的二进制文件名
+ * 传给该类,它负责定位或者生成这个class的定义definition。一个典型的策略就是把传入的name
+ * 参数当成文件名然后从文件系统中读取该class文件。
+ *
+ * 每个Class对象都包含一个ClassLoader的引用(通过Class#getClassLoader()获取),该引用
+ * 指向加载该类的加载器。
+ *
+ * 数组类型的class对象不是由类加载器创建的,它是有Java在运行期自动创建的,数组类型的类加载器
+ * 对象(通过Class#getClassLoader()获取)与该数组中元素的类加载器一直,如果数组元素是基本
+ * 数据类型,则该数组没有类加载器。
+ *
+ * 应用程序可以通过继承ClassLoader来扩展JVM动态加载class的方式。
+ *
+ * 类加载器通常被安全模块使用来确保指向安全区域。
+ *
+ * 类加载器使用代理模式来查找class,每个类加载器实例有含有它父类加载器的引用。当需要加载一个
+ * 类时,类加载器实例在自己尝试去加载class之前会先委托给它的父类加载器进行加载。JVM内置类加载器
+ * 称为bootstrap class loader,该类加载器自己是没有父类的,但是它可以作为其他类加载器的父类。
+ *
+ * 支持并发加载class的类加载器被称为parallel capable class loaders(并行能力加载器?),它们
+ * 需要在类初始化的时候通过ClassLoader.registerAsParallelCapable该方法进行注册。
+ * 注意:ClassLoader类默认就是注册为parallel capable类加载器。但是它的子类如果如果是具有
+ * parallel capable能力的话仍然需要进行注册。
+ *
+ * 对于类加载器不是严格划分层级的使用场景来说,它们必须具备并行加载能力,否则将会导致死锁,因为
+ * 因为类加载锁会在类加载期间一直被持有,参考loadClass方法。
+ *
+ * 一般来说,JVM使用一种平台依赖的方式从本地文件系统中对类进行加载。例如,在UNIX系统中,JVM从
+ * CLASSPATH环境变量指定的目录中进行类记载。
+ *
+ * 但是,除了来自于文件,一些类还有可能源于其他地方,比如说网络或者应用程序自己创建的类,
+ * defineClass(String, byte[], int, int)该方法可以把一个字节数组转化成一个class对象,
+ * 并且可以通过Class.newInstance进行实例化。
+ *
+ * 由类加载器创建的对象的方法或者构造方法如果引用了其他类,JVM通过类加载器中的loadClass方法
+ * 创建这些引用类。
+ *
+ * 应用程序创建一个网络类加载器来从服务器下载class文件,比如这样:
+ *
+ * ClassLoader loader = new NetworkClassLoader(host, port);
+ * Object main = loader.loadClass("Main", true).newInstance();
+ *
+ * 自定义的网络类加载器必须重写findClass跟loadClassData方法实现从网络加载一个类。
+ * 一旦它下载到一个类的字节数组,就可以通过defineClass方法来创建一个class实例,示例代码如下:
+ *
+ * class NetworkClassLoader extends ClassLoader {
+ *      String host;
+ *      int port;
+ *      public Class findClass(String name) {
+ *          byte[] b = loadClassData(name);
+ *          return defineClass(name, b, 0, b.length);
+ *      }
+ *
+ *      private byte[] loadClassData(String name) {
+ *          // load the class data from the connection
+ *      }
+ * }
+ *
+ * 所有作为类加载器方法参数的类名字必须是符合JAVA规范的。
+ * 列举一些合法的类名字:
+ * java.lang.String
+ * javax.swing.JSpinner$DefaultEditor
+ * java.security.KeyStore$Builder$FileBuilder$1
+ * java.net.URLClassLoader$3$1
+ *
+ */
+
+/**
  * A class loader is an object that is responsible for loading classes. The
  * class <tt>ClassLoader</tt> is an abstract class.  Given the <a
  * href="#name">binary name</a> of a class, a class loader should attempt to
