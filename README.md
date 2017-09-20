@@ -17,3 +17,5 @@
 5.ClassLoader部分注释翻译。
 
 6.StampedLock部分注释翻译。
+
+7.AbstractQueuedSynchronizer类开头注释翻译。

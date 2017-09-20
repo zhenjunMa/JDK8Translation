@@ -41,6 +41,180 @@ import java.util.Date;
 import sun.misc.Unsafe;
 
 /**
+ * 翻译：
+ * 提供一个统一的框架，用于实现基于先进先出等待队列的阻塞锁跟相关的同步器（比如semaphores，event?）。
+ * 该类被设计成一个去实现用int值表示状态的多种同步器很有用的基础框架。子类必须实现
+ * protected方法来完成state的改变，该方法定义了在锁的获取与释放过程中state的含义。
+ * 考虑到这些，该类中其他方法实现了所有的队列跟阻塞操作。子类可以维护其他state字段，
+ * 但只有通过getState(),setState()跟compareAndSetState方法进行的修改才会被
+ * 同步器使用。
+ *
+ * 子类应该被定义成一个非public的内部辅助类。AbstractQueuedSynchronizer类并没有
+ * 实现任何接口。相反，它定义了诸如acquireInterruptibly这样的方法，这些方法可以被
+ * 具体的锁和相关的同步器调用，以实现它们的公共方法。
+ *
+ * 该类支持实现任意一个或者同时实现共享锁跟排它锁两种模式。当获取到排它锁的时候，其他
+ * 继续尝试获取该锁的线程将失败。共享锁模式可以被多个线程同时获取成功（但不是必须）。
+ * 但是该类并不知道不同模式之间的区别，因此在共享模式中一个现在已经获取锁成功以后，
+ * 另一个线程（如果有的话）也必须明确指定是否可以获得锁。不同模式中等待锁资源的线程
+ * 共享同一个FIFO队列。一般来说，子类只需要实现任意一种锁模式即可，但也有类似于
+ * ReadWriteLock类，同时实现了两种模式。当子类只需要一种模式时，可以不去实现其他
+ * 没有用处的方法。
+ *
+ * 该类内嵌了一个实现Condition接口的类ConditionObject，子类可以用它实现isHeldExclusively方法，
+ * 来判断排它锁模式下当前线程是否独占，release()会释放getState()返回的值，
+ * acquire()方法，赋值为保存的state值，最终恢复为获取之前的state值。该类中
+ * 没方法创建这种condition，所以除非这个可以满足这个约束，否则不要使用它。
+ * ConditionObject的行为依赖于同步器的实现语义。
+ *
+ * 该类提供了内部队列的检查，探测跟监控方法，对于condition也有类似的方法。这些
+ * 可以根据需要为使用AbstractQueuedSynchronizer同步机制的类导出。
+ *
+ * 该类的序列化值保存了state的值，所以反序列化的对象拥有一个空的线程队列。需要进行
+ * 序列化的子类需要实现readObject()方法进行根据state反序列化恢复。
+ *
+ * 用法：
+ *
+ * 使用该类作为同步器的基础，需要重写以下方法，并合理的使用getState(),setState()
+ * 跟compareAndSetState()方法对state进行修改。
+ *
+ * 1.tryAcquire();
+ * 2.tryRelease()
+ * 3.tryAcquireShared()
+ * 4.tryReleaseShared()
+ * 5.isHeldExclusively()
+ *
+ * 这些方法默认都会抛出UnsupportedOperationException。重写这些方法必须是线程
+ * 安全的，一般来说需要实现的简短且非阻塞。重写这些方法是使用该类的唯一手段。该类中
+ * 其他方法都被声明为final，因为它们不能被独立修改。
+ *
+ * 你还会发现继承自AbstractOwnableSynchronizer类中的方法对于追踪获得排它锁的线程
+ * 非常有用。我们也鼓励你使用它们--这样可以提供监控诊断工具帮助用户查找哪个线程持有锁。
+ *
+ * 尽管该类是基于一个内部的FIFO队列的，但它并不能自动确保FIFO的获取策略，核心的排它锁
+ * 获取代码如下：
+ * Acquire:
+ *     while (!tryAcquire(arg)) {
+ *        1.如果当前线程不在队列中则入队
+ *        2.很大程度阻塞当前线程
+ *     }
+ *
+ * Release:
+ *     if (tryRelease(arg))
+ *        唤醒队列中的第一个线程
+ *
+ * (共享模式与此类似，但它可能会包含一个级联的唤醒操作)
+ *
+ * 由于获取锁是的校验是在入队前执行的，因此一个新的获取锁的线程可能中断它前面的
+ * 线程提前入队阻塞。然而，如果你愿意，可以重写tryAcquire()或者tryAcquireShared()
+ * 方法，通过执行一个或多个检测方法来禁止这种中断，提供公平的FIFO获取顺序。
+ * 尤其的，大部分公平的同步器重写tryAcquire()返回false如果hasQueuedPredecessors()
+ * 方法返回true。可能存在其他变体。
+ *
+ * 抢占式的获取锁策略在吞吐量跟可扩展性上面一般是最好的。尽管它不保证公平性，但早期
+ * 加入队列的线程会比后面加入队列的线程更早的重新竞争锁资源，并且每次跟刚进入的线程
+ * 重新竞争锁资源会有一个公正的机会成功。此外，虽然获取锁不是自旋的，一般意义上说，
+ * 它们可能在阻塞之前执行多次tryAcquire()方法跟其他附加方法。这在排它锁只短暂被
+ * 持有，不需要过度使用时最大限度利用自旋的特性。如果需要，你可以通过提前调用“fast-path”
+ * 检查方法来增强这一点，比如通过hasContended()跟hasQueuedThreads()来在同步器没有
+ * 冲突的时候再进行锁的获取。
+ *
+ * 该类通过state,acquire跟release参数及FIFO队列对外提供了一个高效的可扩展的同步器
+ * 框架，如果它不满足需求，你可以通过更低级别的java.util.concurrent.atomic类，
+ * java.util.Queue跟LockSupport实现。
+ *
+ * 使用示例：
+ * 这里实现了一个不可重入得，互斥排它锁类，它用0代表无锁状态，1代表锁定状态。
+ * 由于一个不可重入锁是不需要严格的记录当前获得锁的线程，该类这样做可以让调用
+ * 更容易监控。同时也支持conditions且实现了其中一个检测方法。
+ *
+ * class Mutex implements Lock, java.io.Serializable {
+ *
+ *   //内部辅助类
+ *   private static class Sync extends AbstractQueuedSynchronizer {
+ *     //判断是否为锁定状态
+ *     protected boolean isHeldExclusively() {
+ *       return getState() == 1;
+ *     }
+ *
+ *     //如果state为0则获取锁
+ *     public boolean tryAcquire(int acquires) {
+ *       assert acquires == 1; //否则无效
+ *       if (compareAndSetState(0, 1)) {
+ *         setExclusiveOwnerThread(Thread.currentThread());
+ *         return true;
+ *       }
+ *       return false;
+ *     }
+ *
+ *     //通过设置state为0来释放锁
+ *     protected boolean tryRelease(int releases) {
+ *       assert releases == 1; //否则无效
+ *       if (getState() == 0) throw new IllegalMonitorStateException();
+ *       setExclusiveOwnerThread(null);
+ *       setState(0);
+ *       return true;
+ *     }
+ *
+ *     //提供Condition
+ *     Condition newCondition() { return new ConditionObject(); }
+ *
+ *     //反序列化属性
+ *     private void readObject(ObjectInputStream s)
+ *         throws IOException, ClassNotFoundException {
+ *       s.defaultReadObject();
+ *       setState(0); //重置为未锁定状态
+ *     }
+ *   }
+ *
+ *   //sync对象完成了所有复杂的工作，我们使用就好
+ *   private final Sync sync = new Sync();
+ *
+ *   public void lock()                { sync.acquire(1); }
+ *   public boolean tryLock()          { return sync.tryAcquire(1); }
+ *   public void unlock()              { sync.release(1); }
+ *   public Condition newCondition()   { return sync.newCondition(); }
+ *   public boolean isLocked()         { return sync.isHeldExclusively(); }
+ *   public boolean hasQueuedThreads() { return sync.hasQueuedThreads(); }
+ *   public void lockInterruptibly() throws InterruptedException {
+ *     sync.acquireInterruptibly(1);
+ *   }
+ *   public boolean tryLock(long timeout, TimeUnit unit)
+ *       throws InterruptedException {
+ *     return sync.tryAcquireNanos(1, unit.toNanos(timeout));
+ *   }
+ *
+ * 这里有一个类似于java.util.concurrent.CountDownLatch的类，但区别是
+ * 它只需要一个signal就能出发。由于它是非排它锁模式的，因此使用shared模式的
+ * 获取跟释放锁方法。
+ *
+ * class BooleanLatch {
+ *
+ *   private static class Sync extends AbstractQueuedSynchronizer {
+ *     boolean isSignalled() { return getState() != 0; }
+ *
+ *     protected int tryAcquireShared(int ignore) {
+ *       return isSignalled() ? 1 : -1;
+ *     }
+ *
+ *     protected boolean tryReleaseShared(int ignore) {
+ *       setState(1);
+ *       return true;
+ *     }
+ *   }
+ *
+ *   private final Sync sync = new Sync();
+ *   public boolean isSignalled() { return sync.isSignalled(); }
+ *   public void signal()         { sync.releaseShared(1); }
+ *   public void await() throws InterruptedException {
+ *     sync.acquireSharedInterruptibly(1);
+ *   }
+ * }}</pre>
+ *
+ *
+ */
+
+/**
  * Provides a framework for implementing blocking locks and related
  * synchronizers (semaphores, events, etc) that rely on
  * first-in-first-out (FIFO) wait queues.  This class is designed to
