@@ -552,22 +552,57 @@ public abstract class AbstractQueuedSynchronizer
      * on the design of this class.
      */
     static final class Node {
+        /** 标记一个节点处于共享模式等待中 */
         /** Marker to indicate a node is waiting in shared mode */
         static final Node SHARED = new Node();
+        /** 标记一个节点处于排它模式等待中*/
         /** Marker to indicate a node is waiting in exclusive mode */
         static final Node EXCLUSIVE = null;
 
+        /** waitStatus的值，表示当前线程已经取消*/
         /** waitStatus value to indicate thread has cancelled */
         static final int CANCELLED =  1;
+        /** waitStatus的值，表示后继节点的线程需要被唤醒*/
         /** waitStatus value to indicate successor's thread needs unparking */
         static final int SIGNAL    = -1;
+        /** waitStatus的值，表示当前线程在等待condition*/
         /** waitStatus value to indicate thread is waiting on condition */
         static final int CONDITION = -2;
+
+        /** waitStatus的值，表示下一个acquireShared需要无条件传播*/
         /**
          * waitStatus value to indicate the next acquireShared should
          * unconditionally propagate
          */
         static final int PROPAGATE = -3;
+
+        /**
+         * 状态字段，只有下列几种取值：
+         * SIGNAL(-1):   该节点的后继节点被（即将）阻塞（通过park），因此当前节点在
+         *               释放或者取消的时候必须unpark它的后继节点。为了避免竞争，
+         *               acquire方法必须首先指明它们需要一个signal，然后在重新
+         *               尝试原子获取，如果失败则阻塞。
+         *
+         * CANCELLED(1): 当前节点由于超时或者中断被取消。节点进入这个状态以后将保持不变。
+         *               一般来说，该种状态节点的线程永远不会再次阻塞。
+         *
+         * CONDITION(-2):当前节点正处在一个条件队列中。除非被转移(到同步队列),否则该节点
+         *               不能被同步队列使用，转移时会把state字段设置成0。（在这里使用这
+         *               个值与该字段的其他用途无关，仅仅为了简化操作）
+         *
+         * PROPAGATE(-3):共享模式释放锁的信息需要传递给其他节点。该值在doReleaseShared
+         *               方法中被设置（仅限于head头节点）来确保持续传递，即使其他操作已经介入。
+         *
+         *      0:       不属于上面任意一个状态。
+         *
+         * 这些值以数字形式排列，以简化使用。
+         * 非负数表示节点不需要被唤醒。因此大部分代码不需要去检验特定的值，仅仅需要检查符号就行。
+         *
+         * 该字段初始化时，普通的同步节点则为0，条件节点则初始化为CONDITION。该字段通过CAS
+         * 进行修改（或者如果可能，直接进行write操作）。
+         *
+         *
+         */
 
         /**
          * Status field, taking on only the values:
@@ -634,10 +669,21 @@ public abstract class AbstractQueuedSynchronizer
         volatile Node next;
 
         /**
+         * 让该节点进入队列的线程。通过构造函数进行初始化，使用完之后设置为null。
+         */
+
+        /**
          * The thread that enqueued this node.  Initialized on
          * construction and nulled out after use.
          */
         volatile Thread thread;
+
+        /**
+         * 连接下一个等待条件的节点后者是特殊的SHARED节点。由于只有在独占模式下
+         * 才访问条件队列，我们只需要一个简单的链表队列来保存等待条件的所有节点。
+         * 这些节点后续会被转移会同步队列中重新参与锁的竞争。同时因为条件只能是
+         * 排它模式的，我们通过特殊值来代表共享节点以此节省一个字段。
+         */
 
         /**
          * Link to next node waiting on condition, or the special
