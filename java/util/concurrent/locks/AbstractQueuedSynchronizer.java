@@ -896,12 +896,22 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享模式下释放锁的动作---唤醒后继节点并且确保传递。（注：对于独占模式而言，
+     * 如果需要被唤醒，release操作仅仅是调用unparkSuccessor）
+     *
      * Release action for shared mode -- signals successor and ensures
      * propagation. (Note: For exclusive mode, release just amounts
      * to calling unparkSuccessor of head if it needs signal.)
      */
     private void doReleaseShared() {
         /*
+         * 确保release的传递，即使有其他进行中的acquires/releases操作。
+         * 这个过程很一般就是如果需要唤醒，就对head节点尝试执行unparkSuccessor操作。
+         * 但是如果不需要，就把status设置为PROPAGATE来确保一旦被release，传递就能
+         * 继续。此外，我们必须要不断循环以防万一在我们操作的过程中有新的节点被
+         * 加进来。最后，不同于unparkSuccessor的其他用法，我们需要知道通过
+         * CAS重置status是否失败，如果是则重新检查。
+         *
          * Ensure that a release propagates, even if there are other
          * in-progress acquires/releases.  This proceeds in the usual
          * way of trying to unparkSuccessor of head if it needs
@@ -931,6 +941,10 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 设置队列的head节点，并判断后继节点是否处于共享模式等待状态，如果是，
+     * 且propagate参数大于0或者node节点waitStatus为PROPAGATE则进行
+     * 传播。
+     *
      * Sets head of queue, and checks if successor may be waiting
      * in shared mode, if so propagating if either propagate > 0 or
      * PROPAGATE status was set.
@@ -939,9 +953,17 @@ public abstract class AbstractQueuedSynchronizer
      * @param propagate the return value from a tryAcquireShared
      */
     private void setHeadAndPropagate(Node node, int propagate) {
-        Node h = head; // Record old head for check below
+        Node h = head; //记录老的头节点，下面会用来进行校验 // Record old head for check below
         setHead(node);
         /*
+         * 尝试唤醒队列中的下一个节点，如果：
+         *      调用方指明了要进行传递（即入参propagate大于0）
+         *      或者被之前的操作（比如h.waitStatus在setHead方法前或者后）记录下来。
+         *      （注：这里仅仅使用waitStatus字段的符号进行检测，因为PROPAGATE状态可能转换为SIGNAL）
+         * 且
+         *      后继节点处于共享模式等待状态，
+         *      或者我们什么也不知道，因为它是null
+         *
          * Try to signal next queued node if:
          *   Propagation was indicated by caller,
          *     or was recorded (as h.waitStatus either before
@@ -1552,6 +1574,10 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 共享模式获取锁资源，忽略中断。该方法首先执行一次tryAcquireShared()如果
+     * 成功则返回。否则把线程加入等待队列，可能被重复的唤醒跟阻塞，不断调用
+     * tryAcquireShared知道获取成功。
+     *
      * Acquires in shared mode, ignoring interrupts.  Implemented by
      * first invoking at least once {@link #tryAcquireShared},
      * returning on success.  Otherwise the thread is queued, possibly
