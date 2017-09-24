@@ -1933,6 +1933,8 @@ public abstract class AbstractQueuedSynchronizer
     // Internal support methods for Conditions
 
     /**
+     * 如果一个节点开始是放在条件队列中，现在在同步队列中等待获取锁就返回true。
+     *
      * Returns true if a node, always one that was initially placed on
      * a condition queue, is now waiting to reacquire on sync queue.
      * @param node the node
@@ -1941,9 +1943,14 @@ public abstract class AbstractQueuedSynchronizer
     final boolean isOnSyncQueue(Node node) {
         if (node.waitStatus == Node.CONDITION || node.prev == null)
             return false;
-        if (node.next != null) // If has successor, it must be on queue
+        if (node.next != null) //如果有后继节点，则它一定在队列中 // If has successor, it must be on queue
             return true;
         /*
+         * node.prev不会为null,但由于通过CAS把它加入队列可能失败，因此它不
+         * 一定在队列中。因此我们不得不从tail开始遍历来确保它确实在队列中。
+         * 该节点在调用该方法时都会在尾节点tail附近，即使CAS失败（通常不会）
+         * 也一样，因此我们的遍历不会太多。
+         *
          * node.prev can be non-null, but not yet on queue because
          * the CAS to place it on queue can fail. So we have to
          * traverse from tail to make sure it actually made it.  It
@@ -1955,6 +1962,8 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 通过从tail反向搜索，如果节点在同步队列中则返回true。
+     *
      * Returns true if node is on sync queue by searching backwards from tail.
      * Called only when needed by isOnSyncQueue.
      * @return true if present
@@ -1998,6 +2007,9 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 如果有必要，则在取消等待之后把节点转移到同步队列。
+     * 如果线程是在被唤醒之前取消则返回true.
+     *
      * Transfers node, if necessary, to sync queue after a cancelled wait.
      * Returns true if thread was cancelled before being signalled.
      *
@@ -2010,6 +2022,9 @@ public abstract class AbstractQueuedSynchronizer
             return true;
         }
         /*
+         * 如果我们输给了signal()，那在它执行完enq()方法前我们什么也干不了。
+         * 在未完成转起的过程中执行取消是极少的，而且很短暂，因此直接自旋就可以。
+         *
          * If we lost out to a signal(), then we can't proceed
          * until it finishes its enq().  Cancelling during an
          * incomplete transfer is both rare and transient, so just
@@ -2021,6 +2036,8 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 根据当前state的值执行release操作，返回保存的state。
+     *
      * Invokes release with current state value; returns saved state.
      * Cancels node and throws exception on failure.
      * @param node the condition node for this wait
@@ -2152,12 +2169,14 @@ public abstract class AbstractQueuedSynchronizer
         // Internal methods
 
         /**
+         * 向等待队列中添加新的等待节点
          * Adds a new waiter to wait queue.
          * @return its new wait node
          */
         private Node addConditionWaiter() {
             Node t = lastWaiter;
             // If lastWaiter is cancelled, clean out.
+            //如果lastWaiter被取消了，则进行清理
             if (t != null && t.waitStatus != Node.CONDITION) {
                 unlinkCancelledWaiters();
                 t = lastWaiter;
@@ -2214,6 +2233,15 @@ public abstract class AbstractQueuedSynchronizer
          * without requiring many re-traversals during cancellation
          * storms.
          */
+        /**
+         * 从条件队列中删除被取消的等待节点。只会在持有锁是被调用。
+         * 该方法只有在条件等待时被取消或者当加入（条件队列）新节点时发现lastWaiter
+         * 被取消时调用。该方法需要在没有信号的情况下避免垃圾保留。
+         * 因此尽管它需要一个完整的便利，也只有当缺失唤醒超时或者取消时才会起作用。
+         * 它遍历全部节点而不是在一个特定节点上停止来取消所有指向垃圾节点的指针，
+         * 而不是在大量取消的时候不断重新遍历。
+         *
+         */
         private void unlinkCancelledWaiters() {
             Node t = firstWaiter;
             Node trail = null;
@@ -2237,6 +2265,8 @@ public abstract class AbstractQueuedSynchronizer
         // public methods
 
         /**
+         * 如果存在等待节点，就从等待队列中移动等待时间最久的线程到可以获取锁的队列
+         *
          * Moves the longest-waiting thread, if one exists, from the
          * wait queue for this condition to the wait queue for the
          * owning lock.
@@ -2253,6 +2283,8 @@ public abstract class AbstractQueuedSynchronizer
         }
 
         /**
+         * 把该条件下等待队列中的所有线程都移到可以获取锁的队列
+         *
          * Moves all threads from the wait queue for this condition to
          * the wait queue for the owning lock.
          *
@@ -2304,6 +2336,9 @@ public abstract class AbstractQueuedSynchronizer
         private static final int THROW_IE    = -1;
 
         /**
+         * 检查中断，如果在唤醒前被中断则返回THROW_IE，在唤醒后被中断则返回REINTERRUPT，
+         * 如果没有被中断则返回0
+         *
          * Checks for interrupt, returning THROW_IE if interrupted
          * before signalled, REINTERRUPT if after signalled, or
          * 0 if not interrupted.
@@ -2315,6 +2350,9 @@ public abstract class AbstractQueuedSynchronizer
         }
 
         /**
+         * 抛出InterruptedException，根据不同mode选择重新中断
+         * 当前线程或者什么也不做。
+         *
          * Throws InterruptedException, reinterrupts current thread, or
          * does nothing, depending on mode.
          */
@@ -2327,6 +2365,15 @@ public abstract class AbstractQueuedSynchronizer
         }
 
         /**
+         * 实现可中断的条件等待
+         * 1.如果当前线程被中断，则抛出InterruptedException。
+         * 2.保存由getState返回的锁状态
+         * 3.执行release方法并把保存的state作为参数，如果失败则抛出IllegalMonitorStateException
+         * 4.阻塞直到被唤醒或者中断
+         * 5.通过执行特殊版本的acquire方法重新获取锁
+         * 6.如果在第4步被阻塞时中断，抛出InterruptedException
+         *
+         *
          * Implements interruptible condition wait.
          * <ol>
          * <li> If current thread is interrupted, throw InterruptedException.
