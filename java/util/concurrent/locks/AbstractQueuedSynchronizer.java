@@ -1399,6 +1399,26 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 尝试获取共享锁。该方法应该首先判断当前是否支持共享锁的获取，如果可以再获取。
+     * 该方法通常是被调用acquire()方法的线程调用。如果返回失败，那么acquire()
+     * 方法就会把该线程加入队列（如果它不在队列中的话），直到被其他线程调用
+     * release()方法唤醒。
+     * 默认实现为抛出UnsupportedOperationException异常。
+     *
+     * @Param arg是acquire()方法的参数。该值通常是传递给acquire方法的参数
+     *        或者条件队列中保存的值。否则的话该值可以是你喜欢的任意值。
+     * @return 负数代表失败。0表示共享锁获取成功，但是其余后续的共享节点获取锁
+     *         都不会成功。正数则表示共享锁获取成功且后续等待共享节点也可能
+     *         获取锁成功，在这种情况下后续等待线程需要被唤醒然后检查是否能成
+     *         功获取锁。（三种不同的返回值需要该方法被使用在只是偶尔需要独占的场景）。
+     *         一旦成功，对象就被获取。
+     * @throws IllegalMonitorStateException,当acquiring方法会将同步器变为
+     *         非法状态时抛出。这个异常必须以一致的方式抛出，以便同步工作正确。
+     * @throws UnsupportedOperationException如果不支持共享模式
+     *
+     */
+
+    /**
      * Attempts to acquire in shared mode. This method should query if
      * the state of the object permits it to be acquired in the shared
      * mode, and if so to acquire it.
@@ -1980,6 +2000,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
+     * 把一个节点从条件队列移到同步队列，如果成功就返回true。
      * Transfers a node from a condition queue onto sync queue.
      * Returns true if successful.
      * @param node the node
@@ -1988,12 +2009,19 @@ public abstract class AbstractQueuedSynchronizer
      */
     final boolean transferForSignal(Node node) {
         /*
+         * 这里可能会跟await方法中被中断时取消节点的操作有冲突，
+         * 如果修改状态失败，那说明节点已经被取消了。
+         *
          * If cannot change waitStatus, the node has been cancelled.
          */
         if (!compareAndSetWaitStatus(node, Node.CONDITION, 0))
             return false;
 
         /*
+         * 拼接在队列后面，尝试把它的前置节点的状态设置为SIGNAL表明有节点在等待
+         * 被唤醒。如果节点已经被取消或者状态设置失败，则唤醒当前线程去重新同步（
+         * 这种情况下waitStatus是短暂且无害的）。
+         *
          * Splice onto queue and try to set waitStatus of predecessor to
          * indicate that thread is (probably) waiting. If cancelled or
          * attempt to set waitStatus fails, wake up to resync (in which
@@ -2022,8 +2050,8 @@ public abstract class AbstractQueuedSynchronizer
             return true;
         }
         /*
-         * 如果我们输给了signal()，那在它执行完enq()方法前我们什么也干不了。
-         * 在未完成转起的过程中执行取消是极少的，而且很短暂，因此直接自旋就可以。
+         * 如果在中断的处理过程中让signal()抢先一步，那在它执行完enq()方法前我们什么也干不了。
+         * 在未完成转移队列的过程中执行取消是极少的，而且很短暂，因此直接自旋就可以。
          *
          * If we lost out to a signal(), then we can't proceed
          * until it finishes its enq().  Cancelling during an
@@ -2191,6 +2219,9 @@ public abstract class AbstractQueuedSynchronizer
         }
 
         /**
+         * 删除并转移一个未取消的节点，或者队列为空。从signal中独立处理为了促使
+         * 编译器级联没有等待节点的情况。
+         *
          * Removes and transfers nodes until hit non-cancelled one or
          * null. Split out from signal in part to encourage compilers
          * to inline the case of no waiters.
@@ -2324,14 +2355,18 @@ public abstract class AbstractQueuedSynchronizer
         }
 
         /*
+         * 对于响应中断的等待，我们必须要跟踪是否抛出异常，
+         *
          * For interruptible waits, we need to track whether to throw
          * InterruptedException, if interrupted while blocked on
          * condition, versus reinterrupt current thread, if
          * interrupted while blocked waiting to re-acquire.
          */
 
+        /** 表示退出等待的时候重新中断 */
         /** Mode meaning to reinterrupt on exit from wait */
         private static final int REINTERRUPT =  1;
+        /** 表示退出等待的时候抛出InterruptedException */
         /** Mode meaning to throw InterruptedException on exit from wait */
         private static final int THROW_IE    = -1;
 
