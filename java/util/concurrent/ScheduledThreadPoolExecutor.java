@@ -330,9 +330,11 @@ public class ScheduledThreadPoolExecutor
          */
         private void setNextRunTime() {
             long p = period;
+            //大于0是scheduleAtFixedRate方法，表示执行时间是根据初始化参数计算的
             if (p > 0)
                 time += p;
             else
+            //小于0是scheduleWithFixedDelay方法，表示执行时间是根据当前时间重新计算的
                 time = triggerTime(-p);
         }
 
@@ -383,15 +385,19 @@ public class ScheduledThreadPoolExecutor
      * @param task the task
      */
     private void delayedExecute(RunnableScheduledFuture<?> task) {
+        //如果线程池已经关闭，则使用拒绝策略把提交任务拒绝掉
         if (isShutdown())
             reject(task);
         else {
+            //与ThreadPoolExecutor不同，这里直接把任务加入延迟队列
             super.getQueue().add(task);
+            //如果当前状态无法执行任务，则取消任务
             if (isShutdown() &&
                 !canRunInCurrentRunState(task.isPeriodic()) &&
                 remove(task))
                 task.cancel(false);
             else
+                //这里是增加一个worker线程，避免提交的任务没有worker去执行
                 ensurePrestart();
         }
     }
@@ -863,6 +869,9 @@ public class ScheduledThreadPoolExecutor
     }
 
     /**
+     * 特殊的延迟队列。为了与线程池ThreadPollExecutor(TPE)的生命保持一致，
+     * 即使该队列只会保存RunnableScheduledFutures
+     * 元素，但依旧声明为了BlockingQueue<Runnable>类型。
      * Specialized delay queue. To mesh with TPE declarations, this
      * class must be declared as a BlockingQueue<Runnable> even though
      * it can only hold RunnableScheduledFutures.
@@ -871,6 +880,20 @@ public class ScheduledThreadPoolExecutor
         implements BlockingQueue<Runnable> {
 
         /*
+         * DelayedWorkQueue队列跟DelayQueue，PriorityQueue一样都使用了
+         * 堆作为数据结构，不同是的是每个ScheduledFutureTask都记录了自己在
+         * 堆数组中的索引值。这是为了满足取消时查找任务的需求，极大的提升了
+         * 删除的时间复杂度（从O(n)变为了O(log n)），还可以在等待元素删除前升级
+         * 到顶端时减少垃圾保留。但由于该队列除了保存ScheduledFutureTasks之外，
+         * 还可能保存RunnableScheduledFutures，我们并不保证这种搜索是可用的。
+         * 在这种情况下，我们会退化成线性搜索。（我们期望大部分任务是不会被修饰
+         * 的，这样的话更快的搜索逻辑大部分情况下是可用的）。
+         *
+         * 所有的堆操作都必须记录索引变化，主要是在siftUp跟siftDown里。删除时，
+         * 任务的heapIndex会被设置成-1。注意，ScheduledFutureTasks最多只
+         * 能在队列中出现一次（这不适用于其他类型的任务或者队列），所以heapIndex
+         * 是唯一的。
+         *
          * A DelayedWorkQueue is based on a heap-based data structure
          * like those in DelayQueue and PriorityQueue, except that
          * every ScheduledFutureTask also records its index into the
