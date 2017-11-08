@@ -50,6 +50,61 @@ import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 
 /**
+ * 一个由元素组成的序列，支持顺序并行聚合操作。下面的例子说演示了使用Stream跟IntStream
+ * 进行的聚合操作：
+ *
+ * int sum = widgets.stream()
+ *                      .filter(w -> w.getColor() == RED)
+ *                      .mapToInt(w -> w.getWeight())
+ *                      .sum();
+ *
+ * 这里，widgets的类型为Collection<Widget>。我们通过Collection.stream()方法创建了一个
+ * 由Widget对象组成的流，对它进行过滤，只保留红色的widgets，然后把它转化成一个int类型的流，
+ * 其中每个int表示widget的重量。最后把该流中的int相加得到总的重量。
+ *
+ * 除了表示对象的流Stream，还有很多原始类型的流，比如IntStream，LongStream，DoubleStream
+ * 它们统称为stream，并符合此处描述的特征和限制。
+ *
+ * 执行计算的时候，流操作会组成一个流管道。流管道由一个来源（可以是数组，集合，函数生成器或者IO管道等等），
+ * 零个或多个中间操作（它会把当前流变成另一个流，比如Stream#filter），跟一个终止操作（它会产生一个结果或者副作用
+ * 比如Stream#count()或者Stream#forEach）。流是很懒的，对于原始数据的计算只有当终止操作初始化时
+ * 才会执行，原始元素也只有在需要的时候才会被消费。
+ *
+ * 集合和流，虽然有一些表面的相似之处，却有不同的目标。集合主要关心的是高效的管理跟访问它们的元素。
+ * 相反，流并没有提供直接访问或者操作它们元素的方法，而是声明式描述它们的来源跟在该来源进行聚合操作
+ * 时使用的计算方法。如果提供的流操作没有满足需求，可以使用iterator跟spliterator操作来执行自定义
+ * 的遍历操作。
+ *
+ * 流管道，例如上面的widgets例子，可以当成是元数据的查询。除非元数据是专门给并发修改设计的
+ * 例如ConcurrentHashMap，当你在查询流上面进行修改的时候可能发成无法预测的错误。
+ *
+ * 大部分的流操作接受描述用户指定行为的参数，比如上面例子中传给mapToInt方法
+ * 的lambda表达式w -> w.getWeight()。为了保持正确的操作，这些操作参数必须遵循以下约定：
+ * 1.必须是无干扰的（即不会修改原始流）
+ * 2.大多数情况下必须是无状态的（它们产生的结果不能依赖任何在流管道执行过程中可能改变的状态）。
+ *
+ * 这些参数都是一个functional interface的实例，例如java.util.function.Function，通常
+ * 是一个lambda表达式或者方法引用。除非特殊情况不然这些参数都必须是非空的
+ *
+ * 一个流应该只被操作（执行一个中间或者终止流操作）一次。这个规则适用于，例如fork出来的流，
+ * 原始流可能要满足两个或者更多流管道，或者在相同的流上面执行多次遍历。流的实现里，当检测到
+ * 该流被复用的时候可能抛出IllegalStateException异常。但是，由于一些流操作可能会返回
+ * 它们的接收者而不是新的流对象，并不是所有的情况都可以检测到复用。
+ *
+ * 流有一个close()方法，实现了AutoCloseable接口，但是几乎所有的流实例在使用之后都不需要
+ * 真正的关闭。一般来说，只有元数据是IO管道（例如Files#lines(Path, Charset)返回的）才需要
+ * 关闭。大部分流会通过集合，数组，函数生成的，并不需要特殊的资源管理。（如果流需要关闭，它可以
+ * 通过try-with-resouce操作声明）。
+ *
+ * 流管道串行或者并行执行。执行模式是流的一个属性。流可以通过串行或者并行两种方式创建。
+ * （例如，Collection.stream()创建一个串行流，Collection.parallelStream()创建一个
+ * 并行流）。执行模式可以通过sequential()或者parallel()方法进行修改，还可以通过isParallel()
+ * 来查询流模式
+ *
+ *
+ */
+
+/**
  * A sequence of elements supporting sequential and parallel aggregate
  * operations.  The following example illustrates an aggregate operation using
  * {@link Stream} and {@link IntStream}:
