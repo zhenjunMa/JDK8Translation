@@ -209,6 +209,9 @@ import java.util.function.UnaryOperator;
 public interface Stream<T> extends BaseStream<T, Stream<T>> {
 
     /**
+     * 返回当前流中满足传入参数predicate条件的元素组成的新流。
+     * 这是一个中间操作。
+     *
      * Returns a stream consisting of the elements of this stream that match
      * the given predicate.
      *
@@ -224,6 +227,9 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Stream<T> filter(Predicate<? super T> predicate);
 
     /**
+     * 返回对当前流中每个元素使用传入函数生成新元素组成的新流。
+     * 这是一个中间操作。
+     *
      * Returns a stream consisting of the results of applying the given
      * function to the elements of this stream.
      *
@@ -239,6 +245,9 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     <R> Stream<R> map(Function<? super T, ? extends R> mapper);
 
     /**
+     * 返回对当前流中每个元素使用传入函数生成的int类型元素组成的新流。
+     * 这是一个中间操作
+     *
      * Returns an {@code IntStream} consisting of the results of applying the
      * given function to the elements of this stream.
      *
@@ -253,6 +262,9 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     IntStream mapToInt(ToIntFunction<? super T> mapper);
 
     /**
+     * 返回对当前流中每个元素使用传入函数生成的long类型元素组成的新流。
+     * 这是一个中间操作
+     *
      * Returns a {@code LongStream} consisting of the results of applying the
      * given function to the elements of this stream.
      *
@@ -267,6 +279,9 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     LongStream mapToLong(ToLongFunction<? super T> mapper);
 
     /**
+     * 返回对当前流中每个元素使用传入函数生成的double类型元素组成的新流。
+     * 这是一个中间操作
+     *
      * Returns a {@code DoubleStream} consisting of the results of applying the
      * given function to the elements of this stream.
      *
@@ -281,6 +296,29 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     DoubleStream mapToDouble(ToDoubleFunction<? super T> mapper);
 
     /**
+     * 返回一个由当前流中的所有元素使用参数传入的函数转换成的子流再组合成一个完整的新流的
+     * 流。该方法的意思是传入的函数会把当前流中的每个元素都转换成一个对应的流，然后在把这
+     * 些对应的流中的内容统一放在一个新流中返回。
+     * 注：每个传入函数生成的子流都是java.util.stream.BaseStream类型，当其中的元素都
+     * 加入到新流以后会调用里面的close()方法进行关闭，如果子流为null，则会用一个空的流代替。
+     *
+     * 这是一个中间操作。
+     *
+     * 注：flatMap()方法用于把一个元素映射成含有多个元素的流，然后再把这些流组合成一个
+     * 完成的流的场景。
+     *
+     * 举例1：
+     * 现在假设orders是一个采购订单流，每个采购订单又包含了一系列的商品，下面的代码会生成
+     * 一个包含所有采购订单中所有商品的流。
+     * orders.flatMap(order -> order.getLineItems().stream())
+     *
+     * 举例2：
+     * 假设path表示一个文件的路径，下面的代码会生成一个包含文件中所有单词的流。
+     * Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8);
+     * Stream<String> words = lines.flatMap(line -> Stream.of(line.split(" +")));
+     * 传给flatMap的函数使用了一个简单的表达式把一行分成一个数组，然后再基于该数组创建一个流。
+     *
+     *
      * Returns a stream consisting of the results of replacing each element of
      * this stream with the contents of a mapped stream produced by applying
      * the provided mapping function to each element.  Each mapped stream is
@@ -325,6 +363,10 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     <R> Stream<R> flatMap(Function<? super T, ? extends Stream<? extends R>> mapper);
 
     /**
+     * 详情参考flatMap方法注释，只是该方法指定了传入函数必须把原来流中的数据转换成一个
+     * int类型的流才行。
+     * 这是一个中间操作。
+     *
      * Returns an {@code IntStream} consisting of the results of replacing each
      * element of this stream with the contents of a mapped stream produced by
      * applying the provided mapping function to each element.  Each mapped
@@ -345,6 +387,11 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     IntStream flatMapToInt(Function<? super T, ? extends IntStream> mapper);
 
     /**
+     * 详情参考flatMap方法注释，只是该方法指定了传入函数必须把原来流中的数据转换成一个
+     * long类型的流才行。
+     * 这是一个中间操作。
+     *
+     *
      * Returns an {@code LongStream} consisting of the results of replacing each
      * element of this stream with the contents of a mapped stream produced by
      * applying the provided mapping function to each element.  Each mapped
@@ -365,6 +412,10 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     LongStream flatMapToLong(Function<? super T, ? extends LongStream> mapper);
 
     /**
+     * 详情参考flatMap方法注释，只是该方法指定了传入函数必须把原来流中的数据转换成一个
+     * double类型的流才行。
+     * 这是一个中间操作。
+     *
      * Returns an {@code DoubleStream} consisting of the results of replacing
      * each element of this stream with the contents of a mapped stream produced
      * by applying the provided mapping function to each element.  Each mapped
@@ -385,6 +436,21 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     DoubleStream flatMapToDouble(Function<? super T, ? extends DoubleStream> mapper);
 
     /**
+     * 返回一个由当前流中不同元素组成的新流，使用equals()方法进行判断。
+     *
+     * 对于一个已经排好序的流来说，选择不同元素时稳定的（对于重复的元素，会保留第一个出现的元素）。
+     * 对于一个未排序的流来说，没有任何稳定的保证。
+     *
+     * 这是一个中间操作。
+     *
+     * 注：
+     * distinct()方法要想在并行操作中保持稳定性是需要付出更多代价的，（需要消耗大量的缓存，
+     * 把该操作作为一个完整的屏障）而且这种稳定性通常又是不需要的。使用一个未排序的原始流
+     * （例如使用generate(Supplier)方法生成）或者使用unordered()方法删除排序约束可以提高
+     * distinct()方法在并行管道中的执行效率，前提是你允许这种情况。
+     * 如果想要保证一致性，而且你又面临distinct()在并行管道中带来的低性能，低内存利用率的问题，
+     * 那么使用串行执行的sequential()方法可能会提高性能。
+     *
      * Returns a stream consisting of the distinct elements (according to
      * {@link Object#equals(Object)}) of this stream.
      *
@@ -414,6 +480,13 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Stream<T> distinct();
 
     /**
+     * 返回当前流中元素进行自然排序后组成的新流。如果该流中的元素不是Comparable类型，
+     * 那么在流的终止操作中会抛出ClassCastException异常。
+     * 对于已经排序的流来说，这个排序是稳定的。对于未排序的流来说，没有任何稳定保证。
+     *
+     * 这是一个中间操作。
+     *
+     *
      * Returns a stream consisting of the elements of this stream, sorted
      * according to natural order.  If the elements of this stream are not
      * {@code Comparable}, a {@code java.lang.ClassCastException} may be thrown
@@ -430,6 +503,11 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Stream<T> sorted();
 
     /**
+     * 返回一个由当前流中元素使用传入的Comparator进行排序的新流。
+     * 对于已经排序的流来说，这个排序是稳定的。对于未排序的流来说，没有任何稳定保证。
+     *
+     * 这是一个中间操作。
+     *
      * Returns a stream consisting of the elements of this stream, sorted
      * according to the provided {@code Comparator}.
      *
@@ -447,6 +525,25 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Stream<T> sorted(Comparator<? super T> comparator);
 
     /**
+     * 返回一个由原流中元素组成的流，另外在新流中的元素被消费时对每个元素使用传入的函数
+     * 进行处理。
+     *
+     * 这是一个中间操作。
+     *
+     * 对于并行流管道来说，入参函数可能在任何时间被任何线程被调用。如果该函数修改了共享状态，
+     * 那么它需要自己保证并发控制。
+     *
+     * 注：
+     * 该方法的存在主要用来支持debug，当你想要查看元素通过一个流管道之后的状态时使用。
+     * 例如：
+     * Stream.of("one", "two", "three", "four")
+     *         .filter(e -> e.length() > 3)
+     *         .peek(e -> System.out.println("Filtered value: " + e))
+     *         .map(String::toUpperCase)
+     *         .peek(e -> System.out.println("Mapped value: " + e))
+     *         .collect(Collectors.toList());
+     *
+     *
      * Returns a stream consisting of the elements of this stream, additionally
      * performing the provided action on each element as elements are consumed
      * from the resulting stream.
@@ -478,6 +575,18 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Stream<T> peek(Consumer<? super T> action);
 
     /**
+     * 返回由当前流中数量小于等于maxSize的元素组成的流。
+     *
+     * 这是一个短暂的中间操作。
+     *
+     * 注：
+     * 尽管limit()方法对于串行流管道来说是一个廉价的操作，但由于limit(n)并不是返回当前流中
+     * 任意的n个元素，而是当前流中前n个元素，这就在并行流管道中，尤其是当maxSize很大是需要
+     * 很大代价。使用一个未排序的原始流（例如使用generate(Supplier)方法生成）或者使用unordered()
+     * 方法删除排序约束可以提高limit()方法在并行管道中的执行效率，前提是你允许这种情况。
+     * 如果想要保证一致性，而且你又面临limit()在并行管道中带来的低性能，低内存利用率的问题，
+     * 那么使用串行执行的sequential()方法可能会提高性能。
+     *
      * Returns a stream consisting of the elements of this stream, truncated
      * to be no longer than {@code maxSize} in length.
      *
@@ -505,6 +614,19 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Stream<T> limit(long maxSize);
 
     /**
+     * 返回一个由当前流中跳过前n个元素，剩余元素组成的新流。
+     * 如果当前流中的元素小于n个，则返回一个空的流。
+     *
+     * 这是一个有状态的中间操作。
+     *
+     * 注：
+     * 尽管skip()方法对于串行流管道来说是一个廉价的操作，但由于skip(n)并不是跳过当前流中
+     * 任意的n个元素，而是当前流中前n个元素，这就在并行流管道中，尤其是当n很大是需要
+     * 很大代价。使用一个未排序的原始流（例如使用generate(Supplier)方法生成）或者使用unordered()
+     * 方法删除排序约束可以提高skip()方法在并行管道中的执行效率，前提是你允许这种情况。
+     * 如果想要保证一致性，而且你又面临skip()在并行管道中带来的低性能，低内存利用率的问题，
+     * 那么使用串行执行的sequential()方法可能会提高性能。
+     *
      * Returns a stream consisting of the remaining elements of this stream
      * after discarding the first {@code n} elements of the stream.
      * If this stream contains fewer than {@code n} elements then an
@@ -534,6 +656,14 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Stream<T> skip(long n);
 
     /**
+     * 对当前流中的每个元素都执行一次入参函数。
+     *
+     * 这是一个终止操作。
+     *
+     * 该操作是明确不确定的。对于并行流来说，它不保证操作的元素的顺序，因为这样
+     * 会牺牲并行的性能。对于给定的元素，该入参函数会在任意时间任何线程中执行，
+     * 如果入参函数需要操作共享状态，那么需要它自己保证并发控制。
+     *
      * Performs an action for each element of this stream.
      *
      * <p>This is a <a href="package-summary.html#StreamOps">terminal
