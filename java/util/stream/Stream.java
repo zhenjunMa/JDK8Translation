@@ -683,6 +683,13 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     void forEach(Consumer<? super T> action);
 
     /**
+     * 该方法与forEach的区别是在并行流中，它依然能够保持按顺序处理元素。
+     *
+     * 这是一个终止操作。
+     *
+     * 对于一个元素执行action操作happens-befor于对该元素的后续元素执行action，
+     * 但对于任意给定元素，执行的线程是不确定的。
+     *
      * Performs an action for each element of this stream, in the encounter
      * order of the stream if the stream has a defined encounter order.
      *
@@ -702,6 +709,11 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     void forEachOrdered(Consumer<? super T> action);
 
     /**
+     * 返回一个包含该流中所有元素的数组。
+     *
+     * 这是一个终止操作。
+     *
+     *
      * Returns an array containing the elements of this stream.
      *
      * <p>This is a <a href="package-summary.html#StreamOps">terminal
