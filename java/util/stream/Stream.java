@@ -724,6 +724,19 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Object[] toArray();
 
     /**
+     * 返回一个包含流中所有元素的数组，使用提供的generator函数分配返回的数组，以及做一些
+     * 额外操作，比如分片执行或者resizing。
+     *
+     * 这是一个终止操作。
+     *
+     * 注：
+     * generator函数需要一个表示数组的大小int参数，返回一个指定大小的数组，可以通过以下
+     * 方式进行简写：
+     * Person[] men = people.stream()
+     *                          .filter(p -> p.getGender() == MALE)
+     *                          .toArray(Person[]::new);
+     *
+     *
      * Returns an array containing the elements of this stream, using the
      * provided {@code generator} function to allocate the returned array, as
      * well as any additional arrays that might be required for a partitioned
@@ -753,6 +766,32 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     <A> A[] toArray(IntFunction<A[]> generator);
 
     /**
+     * 使用提供的identity值以及一个累加器函数对流中元素执行一个削减操作，返回一个削减以后的值。
+     * 类似于如下操作：
+     *     T result = identity;
+     *     for (T element : this stream)
+     *         result = accumulator.apply(result, element)
+     *     return result;
+     * 但是不保证顺序处理每个元素。
+     *
+     * 参数identity必须是accumulator函数的identity，也就是说对于所有的t， accumulator.apply(identity, t)
+     * 都等于t，函数accumulator必须是个联想函数。
+     *
+     * 这是一个终止操作。
+     *
+     * 注：
+     * 求和, 取小, 取大, 取平均数跟拼接字符串都是削减操作的特殊案例。对数字组成的流求和
+     * 可以用以下方式：
+     * Integer sum = integers.reduce(0, (a, b) -> a+b);
+     * 或者：
+     * Integer sum = integers.reduce(0, Integer::sum);
+     *
+     * 尽管与直接在循环中进行计算相比，这种方式算是一种迂回的聚合操作。但这种削减操作可以
+     * 让更优雅的进行并行执行，有效的减少额外的并发控制以及竞争。
+     *
+     *
+     *
+     *
      * Performs a <a href="package-summary.html#Reduction">reduction</a> on the
      * elements of this stream, using the provided identity value and an
      * <a href="package-summary.html#Associativity">associative</a>
@@ -804,6 +843,27 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     T reduce(T identity, BinaryOperator<T> accumulator);
 
     /**
+     * 用一个联想累计函数对流中的元素执行一个削减操作，如果有的话，返回一个由Optional封装好的值。
+     * 该操作等同于：
+     * boolean foundAny = false;
+     *     T result = null;
+     *     for (T element : this stream) {
+     *         if (!foundAny) {
+     *             foundAny = true;
+     *             result = element;
+     *         }
+     *         else
+     *             result = accumulator.apply(result, element);
+     *     }
+     *     return foundAny ? Optional.of(result) : Optional.empty();
+     * 但并不是严格执行的。
+     *
+     * accumulator函数必须是一个联想函数。
+     *
+     * 这是一个终止操作。
+     *
+     *
+     *
      * Performs a <a href="package-summary.html#Reduction">reduction</a> on the
      * elements of this stream, using an
      * <a href="package-summary.html#Associativity">associative</a> accumulation
@@ -844,6 +904,28 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     Optional<T> reduce(BinaryOperator<T> accumulator);
 
     /**
+     * 使用提供的identity，叠加跟合并函数对流中的元素执行一个削减操作，这等效于：
+     *
+     * U result = identity;
+     * for (T element : this stream)
+     *    result = accumulator.apply(result, element)
+     * return result;
+     *
+     * 但不是严格按顺序执行。
+     *
+     * identity的值必须满足combiner函数。意思是对于所有的类型u，combiner(identity, u)
+     * 于u相同。此外，combiner函数必须与accumulator函数一致；对于所有的u跟t,必须满足以下
+     * 条件：
+     * combiner.apply(u, accumulator.apply(identity, t)) == accumulator.apply(u, t)
+     *
+     * 这是一个终止操作。
+     *
+     * 注：
+     * 很多使用这种方式的削减操作都可以更简单的使用map跟reduce操作组合实现。accumulator函数
+     * 融合了mapper跟accumulator，很多时候可以比分开的mapping跟reduction更加高效，
+     * 比如已知了之前的一些削减操作可以让你减少一些计算。
+     *
+     *
      * Performs a <a href="package-summary.html#Reduction">reduction</a> on the
      * elements of this stream, using the provided identity, accumulation and
      * combining functions.  This is equivalent to:
@@ -1164,6 +1246,8 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     }
 
     /**
+     * 返回一个空的顺序流。
+     *
      * Returns an empty sequential {@code Stream}.
      *
      * @param <T> the type of stream elements
@@ -1174,6 +1258,8 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     }
 
     /**
+     * 返回一个仅含有给定的一个元素组成的顺序流。
+     *
      * Returns a sequential {@code Stream} containing a single element.
      *
      * @param t the single element
@@ -1185,6 +1271,9 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
     }
 
     /**
+     *
+     * 返回一个由给定元素进行顺序排列组成的流。
+     *
      * Returns a sequential ordered stream whose elements are the specified values.
      *
      * @param <T> the type of stream elements
