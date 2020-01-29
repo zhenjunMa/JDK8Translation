@@ -67,6 +67,21 @@ import java.io.Serializable;
  * @since 1.8
  * @author Doug Lea
  */
+
+/**
+ * 使用一个或多个变量来维护一个初始值为0的总和。当多个线程指定add方法遇到冲突时，
+ * 这一系列的变量就会动态增长来减小冲突。sum()跟longValue()两个方法会返回当前
+ * 由着一系列变量组成的总和值。
+ *
+ * 该类在多线程修改数值，比如用于统计的场景中（但不是细粒度的同步控制），比AtomicLong更推荐。
+ * 当并发冲突小时，它跟AtomicLong性能类似，但当冲突很大时，它的性能更好，但也会消耗更多空间。
+ *
+ * 该类可能结合ConcurrentHashMap一起使用来达到统计效果，比如为ConcurrentHashMap<String,LongAdder> freqs添加值时
+ * 如果对应Key还不存在，可以使用freqs.computeIfAbsent(k -> new LongAdder()).increment();
+ *
+ * 该类继承了Number,但由于该类的实例一般都是可变的，不能用作集合的key，因此没有重写equals,hashCode,compareTo方法。
+ *
+ */
 public class LongAdder extends Striped64 implements Serializable {
     private static final long serialVersionUID = 7249069246863182397L;
 
@@ -114,6 +129,14 @@ public class LongAdder extends Striped64 implements Serializable {
      * incorporated.
      *
      * @return the sum
+     */
+
+    /**
+     * 返回当前的总和，返回值不是一个原子快照，当该方法在非并发修改的场景下执行时
+     * 返回的是一个精确值，但如果在计算总和的过程中有并发修改，那么新修改的值可能
+     * 不会被计算进去。
+     *
+     * @return
      */
     public long sum() {
         Cell[] as = cells; Cell a;
