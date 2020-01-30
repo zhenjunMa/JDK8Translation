@@ -102,6 +102,32 @@ import java.util.function.Consumer;
  * @author Doug Lea
  * @param <E> the type of elements held in this collection
  */
+
+/**
+ * 一个基于链表实现的无界线程安全队列，按照FIFO对元素进行排序，head指向在队列中存在时间最长
+ * 的元素，tail则指向在队列中存在时间最短的元素。新加入的元素被放在队列尾，队列中的各种检索
+ * 操作从队列头的元素开始。ConcurrentLinkedQueue类适用于并发操作集合的场景，跟其他并发集合的
+ * 实现一样，该队列中不允许加入null元素。
+ *
+ * 该类的设计思想借鉴了《Simple, Fast, and Practical Non-Blocking and Blocking Concurrent Queue》
+ *
+ * 该类的迭代器是弱一致性，它返回的元素表示的是队列在某个点或者在迭代器创建时候的状态。
+ * 它不会抛出ConcurrentModificationException异常，并且会跟其他操作并发执行。
+ * 创建迭代器时队列中包含的元素只会被迭代一次。
+ *
+ * 需要注意，该类跟其他多数集合类不同，size()方法不是一个O(1)的操作。
+ * 由于队列是异步的这一特征，需要遍历才能知道当前的元素总和，也正是因为如此，如果在遍历的时候有其他并发
+ * 操作，那么返回的元素个数是不准确的。此外，对于批量操作，如addAll(),removeAll(),retainAll(),containsAll()
+ * equals(),toArray()是不保证原子性的。比如迭代操作addAll()并发执行，那么迭代器可能只会看到添加的部分元素。
+ *
+ * 该类及其迭代器实现了Queue跟Iterator接口的所有可选方法。
+ *
+ * 内存一致性的影响：跟其他并发集合一样，一个线程中先于向该队列添加元素的所有操作happen-before其他线程对该元素
+ * 进行操作之后的所有操作。
+ *
+ * 该类是Java集合框架中的一员。
+ *
+ */
 public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
         implements Queue<E>, java.io.Serializable {
     private static final long serialVersionUID = 196745693267521676L;
@@ -177,6 +203,37 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
      * optimization.
      */
 
+    /*
+     * 这是一个对上面提到的算法的改良，是为了适应自动垃圾回收以及支持内部节点删除(为了实现remove(Object))
+     * 更多细节可以参考论文。
+     *
+     * 跟这个包里的其他大部分非阻塞算法一样，它的实现是基于运行在自动垃圾回收的环境下
+     * 因为不需要考虑ABA问题，也就是不需要使用用在没有GC的环境下的引用计数法或者相关技术。
+     *
+     * 有两个基本原则：
+     * 1. 只有一个Node(最后一个)的next成员指向null。最后一个Node可以使用tail变量O(1)获得，
+     *    但这只是个优化，完成可以使用head变量O(N)获得。
+     * 2. 队列中的Node的item都不会null，通过CAS修改item的指向时，如果为null则自动从队列中删除。
+     *    从head遍历元素永远是可行的，即使由于并发操作导致head指针发生了移动。出队的Node可能因为
+     *    Iterator的创建或者poll()丢失了时间片而被一直使用。
+     *
+     * 上述原则可能会因为之前出队的Node导致所有的Node都是GC可达的，这会带来两个问题：
+     * 1. 允许一个错误的Iterator导致内存泄漏
+     * 2. 跨代引用导致一直在Old GC
+     * 然而只有没有被删除的Node才需要对出队的Node可达，而且这种可达性并不需要被GC机制理解，因此
+     * 使用了一个小技巧：把出队的Node指向它自己，这种自身引用就表示head移动了。
+     *
+     * TODO
+     *
+     * 当构建一个Node（在把它入队前）我们使用Unsafe.putObject来避免一次volatile写的开销，
+     * 这样就有让队列的开销变为"one-and-a-half" cas
+     *
+     * head跟tail都可能指向一个item为null的Node。当队列为空的时候，所有的item必然为空。
+     * 在队列创建的时候，head跟tail都只想了一个item为null的dummy Node。head跟tail都是
+     * 使用CAS进行更新，因此它们不会回退。
+     *
+     *
+     */
     private static class Node<E> {
         volatile E item;
         volatile Node<E> next;
