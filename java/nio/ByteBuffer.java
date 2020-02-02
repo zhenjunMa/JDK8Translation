@@ -506,6 +506,19 @@ public abstract class ByteBuffer
      *
      * @return  The new byte buffer
      */
+
+    /**
+     * 创建一个跟当前buffer共享数据的新buffer。
+     *
+     * 新buffer的数据从当前buffer的position开始，无论修改哪个buffer的数据，另一个buffer
+     * 也会看到修改后的值。两个buffer的position、limit、mark三个变量是独立的。
+     *
+     * 新buffer的position为0，capacity跟limit是buffer中剩下的字节数，mark变量是未定义。
+     * 新buffer是否为直接内存以及是否为只读内存跟当前buffer一致。
+     *
+     *
+     * @return
+     */
     public abstract ByteBuffer slice();
 
     /**
@@ -522,6 +535,12 @@ public abstract class ByteBuffer
      * only if, this buffer is read-only.  </p>
      *
      * @return  The new byte buffer
+     */
+
+    /**
+     * 跟slice的区别在于新buffer的capacity，limit，position，mark变量都跟当前buffer相等。
+     *
+     * @return
      */
     public abstract ByteBuffer duplicate();
 
