@@ -306,6 +306,9 @@ public abstract class SocketChannel
      *
      * @return  <tt>true</tt> if, and only if, this channel's network socket
      *          is {@link #isOpen open} and connected
+     *
+     *
+     * 返回该channel对应的网络socket是否处于连接中，只有在该channel的网络socket的isOpen为true且connected时返回true
      */
     public abstract boolean isConnected();
 

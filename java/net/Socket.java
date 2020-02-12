@@ -1132,6 +1132,21 @@ class Socket implements java.io.Closeable {
      * @since   JDK 1.1
      * @see #getSoTimeout()
      */
+
+    /**
+     * 激活或者取消SocketOptions中的SO_TIMEOUT属性，毫秒为单位。
+     * 该超时时间关联以下操作：
+     * 1. ServerSocket.accept();
+     * 2. SocketInputStream.read();
+     * 3. DatagramSocket.receive();
+     * 如果超时，即使该连接还有效，还是会抛出java.net.SocketTimeoutException异常。
+     *
+     * 该超时时间如果想生效，必须在调用对应的阻塞方面之前进行设置。
+     * 该值如果等于0，则表示一直阻塞。
+     *
+     * @param timeout
+     * @throws SocketException
+     */
     public synchronized void setSoTimeout(int timeout) throws SocketException {
         if (isClosed())
             throw new SocketException("Socket is closed");

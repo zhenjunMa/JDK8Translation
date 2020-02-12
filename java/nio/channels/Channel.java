@@ -59,6 +59,9 @@ public interface Channel extends Closeable {
      * Tells whether or not this channel is open.
      *
      * @return <tt>true</tt> if, and only if, this channel is open
+     *
+     * 返回该channel是否关闭，除非被调用了close方法关闭该channel，否则永远返回true.
+     *
      */
     public boolean isOpen();
 
