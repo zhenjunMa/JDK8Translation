@@ -147,6 +147,20 @@ public interface ConcurrentMap<K, V> extends Map<K, V> {
      * @throws IllegalArgumentException if some property of the specified key
      *         or value prevents it from being stored in this map
      */
+
+    /**
+     * 如果指定的key还没有对应的value，则把value赋给这个key。
+     * 该方法等同于：
+     * if (!map.containsKey(key))
+     *     return map.put(key, value);
+     * else
+     *     return map.get(key);
+     * 但是该方法保证了原子性，非常好用。
+     *
+     * @param key
+     * @param value
+     * @return 如果有key没有value（或者在某些map实现中value为null）则返回null，否则返回对应的value
+     */
      V putIfAbsent(K key, V value);
 
     /**

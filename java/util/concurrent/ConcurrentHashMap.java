@@ -863,6 +863,9 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * but also as a fallback during table initialization
      * races. Updated via CAS.
      */
+    /**
+     * 基础计数器，主要用在没有冲突的场景，同时作为哈希表初始化竞争时的降级方案。
+     */
     private transient volatile long baseCount;
 
     /**
@@ -887,6 +890,10 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
 
     /**
      * Table of counter cells. When non-null, size is a power of 2.
+     */
+    /**
+     * 哈希表的计数单元，如果不是null，则它的size为2的次方。
+     *
      */
     private transient volatile CounterCell[] counterCells;
 
@@ -1306,6 +1313,20 @@ public class ConcurrentHashMap<K,V> extends AbstractMap<K,V>
      * {@link Spliterator#DISTINCT}, and {@link Spliterator#NONNULL}.
      *
      * @return the set view
+     */
+
+    /**
+     * 返回一个该map中包含的key的集合视图，这些key仍旧属于该map，所以对map的修改对于该视图
+     * 是可见的，反过来也一样。
+     *
+     * 这个集合支持Iterator.remove，Set.remove，removeAll，retainAll，clear等删除操作，
+     * 同时也会删除原来map中的数据，但它不支持add，addAll操作。
+     *
+     * 这个视图的迭代器是弱一致性的。
+     *
+     * TODO 分离器
+     *
+     * @return
      */
     public KeySetView<K,V> keySet() {
         KeySetView<K,V> ks;
